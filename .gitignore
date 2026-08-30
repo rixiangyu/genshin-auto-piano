@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# 日志与临时文件
+*.log
+debug.log
+
+# 系统文件
+Thumbs.db
+.DS_Store
+
+# 本地配置（keymap.json 首次运行自动生成，不入库）
+resources/keymap.json
+resources/settings.json
+
+# 打包产物
+*.exe
