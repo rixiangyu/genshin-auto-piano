@@ -2,6 +2,7 @@ package com.genshin.piano.overlay
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.Color as AColor
@@ -21,6 +22,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
@@ -66,17 +68,24 @@ class OverlayClickerService : Service() {
     private lateinit var barBox: LinearLayout
     private lateinit var barLp: WindowManager.LayoutParams
     private lateinit var barRow: LinearLayout
+    private lateinit var songScroll: ScrollView
     private lateinit var songListBox: LinearLayout
     private lateinit var songLabel: TextView
     private lateinit var playChip: TextView
     private lateinit var eyeBtn: TextView
     private lateinit var calibChip: TextView
     private lateinit var calibHint: TextView
+    private lateinit var barHandle: TextView
+    private lateinit var swEnabled: Switch
+    private lateinit var listBtn: TextView
+    private lateinit var closeChip: TextView
 
     private var calibrate = false
     private var enabled = true
     private var pointsVisible = true
-    private var expanded = false
+
+    /** 整条折叠：折叠后只留 ▶ 和 ♪（这两个按钮兼作拖动柄） */
+    private var barCollapsed = true
     private var songs: MutableList<Song> = mutableListOf()
     private var selectedSong = -1
 
@@ -122,16 +131,22 @@ class OverlayClickerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 通知栏的「关闭悬浮窗」
+        if (intent?.action == ACTION_STOP) {
+            closeOverlay()
+            return START_NOT_STICKY
+        }
         // 服务可能是在用户导入 MIDI 之前就启动的，这里必须重新读一次曲库，
         // 否则悬浮窗永远显示"未选择曲目"。
         refreshSongs()
         if (intent?.getBooleanExtra(EXTRA_CALIBRATE, false) == true) {
             calibrate = true
             pointsVisible = true
+            barCollapsed = false        // 校准需要看到提示条
             applyPointsVisibility()
+            applyBarMode()
             updateEyeChip()
             updateCalibChip()
-            updateCalibHint()
             armCalibTimeout()
         }
         return START_STICKY
@@ -147,11 +162,18 @@ class OverlayClickerService : Service() {
                 NotificationChannel(channelId, "连点器运行中", NotificationManager.IMPORTANCE_LOW)
             )
         }
+        // 通知栏也能一键关闭悬浮窗
+        val stopPi = PendingIntent.getService(
+            this, 1,
+            Intent(this, OverlayClickerService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
         val notif = NotificationCompat.Builder(this, channelId)
             .setContentTitle("原神自动弹琴")
-            .setContentText("悬浮连点器已就绪")
+            .setContentText("悬浮连点器运行中 · 点「关闭悬浮窗」可退出")
             .setSmallIcon(R.drawable.ic_launcher)
             .setOngoing(true)
+            .addAction(0, "关闭悬浮窗", stopPi)
             .build()
         startForeground(1001, notif)
     }
@@ -163,7 +185,7 @@ class OverlayClickerService : Service() {
         songs = songStore.load()
         if (selectedSong !in songs.indices) selectedSong = if (songs.isEmpty()) -1 else 0
         if (::songLabel.isInitialized) songLabel.text = selectedSongName()
-        if (::songListBox.isInitialized && expanded) rebuildSongList()
+        if (::songListBox.isInitialized && !barCollapsed) rebuildSongList()
     }
 
     // ---------------- 点位窗口 ----------------
@@ -321,8 +343,8 @@ class OverlayClickerService : Service() {
         }
         barBox.addView(calibHint)
 
-        val handle = iconChip("≡").apply { setOnTouchListener(barDragTouch()) }
-        val sw = Switch(this).apply {
+        barHandle = iconChip("≡").apply { setOnTouchListener(barDragTouch()) }
+        swEnabled = Switch(this).apply {
             isChecked = true
             setOnCheckedChangeListener { _, checked ->
                 enabled = checked
@@ -340,8 +362,8 @@ class OverlayClickerService : Service() {
             setPadding(dp(6), 0, dp(6), 0)
         }
         playChip = iconChip("▶").apply { setOnClickListener { togglePlay() } }
-        val listBtn = iconChip("♪").apply {
-            setOnClickListener { toggleExpanded() }
+        listBtn = iconChip("♪").apply {
+            setOnClickListener { toggleBarCollapsed() }
         }
         eyeBtn = iconChip("👁").apply {
             setOnClickListener {
@@ -352,24 +374,34 @@ class OverlayClickerService : Service() {
             }
         }
         calibChip = iconChip("校").apply { setOnClickListener { toggleCalibrate() } }
+        // 关闭整个悬浮窗：只在展开态显示，折叠态保持"只有 ▶ 和 ♪"
+        closeChip = iconChip("✕").apply {
+            setTextColor(AColor.parseColor("#E07A5F"))
+            setOnClickListener { closeOverlay() }
+        }
 
-        barRow.addView(handle)
-        barRow.addView(sw, LinearLayout.LayoutParams(dp(38), dp(22)).apply { marginStart = dp(4) })
+        barRow.addView(barHandle)
+        barRow.addView(swEnabled, LinearLayout.LayoutParams(dp(38), dp(22)).apply { marginStart = dp(4) })
         barRow.addView(songLabel, LinearLayout.LayoutParams(0, dp(30), 1f))
         barRow.addView(playChip)
         barRow.addView(listBtn)
         barRow.addView(eyeBtn)
         barRow.addView(calibChip)
+        barRow.addView(closeChip)
         updateEyeChip()
         updateCalibChip()
         updateCalibHint()
 
         songListBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            visibility = View.GONE
             setPadding(0, dp(2), 0, dp(4))
         }
-        barBox.addView(songListBox)
+        // 歌单套一层 ScrollView：最多显示 5 行，更多就在里面滑
+        songScroll = ScrollView(this).apply {
+            addView(songListBox)
+            visibility = View.GONE
+        }
+        barBox.addView(songScroll)
         rebuildSongList()
 
         barLp = WindowManager.LayoutParams(
@@ -385,6 +417,7 @@ class OverlayClickerService : Service() {
             y = dp(16)
         }
         wm.addView(barBox, barLp)
+        applyBarMode()
     }
 
     private fun barDragTouch(): View.OnTouchListener {
@@ -405,29 +438,101 @@ class OverlayClickerService : Service() {
         }
     }
 
-    private fun toggleExpanded() {
-        expanded = !expanded
-        if (expanded) refreshSongs()          // 展开时重读曲库，导入新歌后立刻可见
-        songListBox.visibility = if (expanded) View.VISIBLE else View.GONE
-        if (expanded) rebuildSongList()
+    /**
+     * 展开 / 收起整条控制栏。
+     * 折叠态只留 ▶ 和 ♪（这两个兼作拖动柄）；展开态出现全部控件 + 歌单。
+     */
+    private fun toggleBarCollapsed() {
+        barCollapsed = !barCollapsed
+        if (!barCollapsed) {
+            refreshSongs()        // 展开时重读曲库，导入新歌后立刻可见
+            rebuildSongList()
+        }
+        applyBarMode()
+    }
+
+    /** 按折叠状态切换控件可见性与拖动方式 */
+    private fun applyBarMode() {
+        val show = if (barCollapsed) View.GONE else View.VISIBLE
+        barHandle.visibility = show
+        swEnabled.visibility = show
+        songLabel.visibility = show
+        eyeBtn.visibility = show
+        calibChip.visibility = show
+        closeChip.visibility = show
+
+        // 提示条与歌单都只在展开态出现
+        calibHint.visibility = if (!barCollapsed && calibrate) View.VISIBLE else View.GONE
+        songScroll.visibility = if (!barCollapsed) View.VISIBLE else View.GONE
+
+        if (barCollapsed) {
+            // 折叠态没有拖柄，把 ▶ 和 ♪ 变成「按住可拖、轻点可用」
+            playChip.setOnTouchListener(dragOrClick { togglePlay() })
+            listBtn.setOnTouchListener(dragOrClick { toggleBarCollapsed() })
+        } else {
+            playChip.setOnTouchListener(null)
+            listBtn.setOnTouchListener(null)
+        }
+        // ♪ 的方向提示：折叠时表示"展开"，展开时表示"收起"
+        listBtn.text = if (barCollapsed) "♪" else "▾"
+    }
+
+    /**
+     * 折叠态专用：按住拖动 = 移动悬浮条，轻点 = 触发点击。
+     * 位移超过 12dp 算拖动，否则算点击。
+     */
+    private fun dragOrClick(onClick: () -> Unit): View.OnTouchListener {
+        var downX = 0f; var downY = 0f; var mX = 0; var mY = 0; var moved = false
+        return View.OnTouchListener { _, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.rawX; downY = e.rawY
+                    mX = barLp.x; mY = barLp.y
+                    moved = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = e.rawX - downX
+                    val dy = e.rawY - downY
+                    if (!moved && (Math.abs(dx) > dp(12) || Math.abs(dy) > dp(12))) moved = true
+                    if (moved) {
+                        barLp.x = mX + dx.toInt()
+                        barLp.y = mY + dy.toInt()
+                        runCatching { wm.updateViewLayout(barBox, barLp) }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!moved) onClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> true
+                else -> false
+            }
+        }
     }
 
     private fun rebuildSongList() {
         songListBox.removeAllViews()
         if (songs.isEmpty()) {
             songListBox.addView(listItem("（还没有曲目，先在 App 里导入 MIDI）", false) {})
-            return
+        } else {
+            songs.forEachIndexed { i, s ->
+                songListBox.addView(listItem(if (i == selectedSong) "● ${s.name}" else "○ ${s.name}", i == selectedSong) {
+                    selectedSong = i
+                    songLabel.text = s.name
+                    stopPlayback()             // 换曲目先停掉当前播放
+                    rebuildSongList()
+                    barCollapsed = true        // 选完自动收起，少挡画面
+                    applyBarMode()
+                })
+            }
         }
-        songs.forEachIndexed { i, s ->
-            songListBox.addView(listItem(if (i == selectedSong) "● ${s.name}" else "○ ${s.name}", i == selectedSong) {
-                selectedSong = i
-                songLabel.text = s.name
-                expanded = false
-                songListBox.visibility = View.GONE
-                stopPlayback()                 // 换曲目先停掉当前播放
-                rebuildSongList()
-            })
-        }
+        // 高度 = min(曲目数, 5) 行；超出部分在 ScrollView 里滑动
+        val rows = minOf(songs.size.coerceAtLeast(1), SONG_VISIBLE_ROWS)
+        songScroll.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(rows * SONG_ROW_DP)
+        )
     }
 
     private fun listItem(text: String, current: Boolean, onClick: () -> Unit): TextView =
@@ -453,7 +558,7 @@ class OverlayClickerService : Service() {
     }
 
     private fun updateCalibHint() {
-        calibHint.visibility = if (calibrate) View.VISIBLE else View.GONE
+        calibHint.visibility = if (calibrate && !barCollapsed) View.VISIBLE else View.GONE
     }
 
     /** 校准态若长时间无操作自动退出 —— 防止用户忘了退，点位层一直挡在游戏上 */
@@ -486,6 +591,11 @@ class OverlayClickerService : Service() {
         updateCalibChip()
         updateCalibHint()
         armCalibTimeout()
+        // 校准时自动展开悬浮条，否则看不到「校准中」的提示
+        if (calibrate && barCollapsed) {
+            barCollapsed = false
+            applyBarMode()
+        }
         toast(
             if (calibrate) "校准模式：拖圆点对准琴键，拖空白处整体移动；再点「校」退出"
             else "已退出校准，点位恢复为不挡操作"
@@ -499,7 +609,7 @@ class OverlayClickerService : Service() {
         mainHandler.removeCallbacks(calibTimeout)
         applyPointsVisibility()
         updateCalibChip()
-        updateCalibHint()
+        applyBarMode()      // 内部按折叠/校准状态决定提示条是否显示
     }
 
     // ---------------- 播放 ----------------
@@ -509,6 +619,13 @@ class OverlayClickerService : Service() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+
+    /** 关闭悬浮窗：停播放 + 结束服务（两个窗口在 onDestroy 移除，前台通知一并消失） */
+    private fun closeOverlay() {
+        runCatching { stopPlayback() }
+        toast("悬浮窗已关闭")
+        stopSelf()
+    }
 
     private fun stopPlayback() {
         engine?.stop()
@@ -524,7 +641,7 @@ class OverlayClickerService : Service() {
     private fun togglePlay() {
         if (!enabled) { toast("连点器开关是关的，先打开"); return }
         val song = songs.getOrNull(selectedSong)
-        if (song == null) { toast("先点 ♪ 展开并选一首曲目"); return }
+        if (song == null) { toast("先点 ♪ 展开歌单，选一首曲目"); return }
         exitCalibrateIfNeeded()      // 演奏前退出校准，点位层不再拦截触摸
 
         val e = engine
@@ -570,7 +687,14 @@ class OverlayClickerService : Service() {
         onNoteEnd = { idx -> mainHandler.post { flashPoint(idx, false) } },
         onProgress = { _, _, _ -> },
         onFinished = { mainHandler.post { setPlayChip("▶") } },
-        onState = { st -> mainHandler.post { setPlayChip(if (st == PlayerState.PLAYING) "⏸" else "▶") } },
+        onState = { st -> mainHandler.post {
+            setPlayChip(if (st == PlayerState.PLAYING) "⏸" else "▶")
+            // 演奏开始后自动收起悬浮条，少挡游戏画面
+            if (st == PlayerState.PLAYING && !barCollapsed) {
+                barCollapsed = true
+                applyBarMode()
+            }
+        } },
         onGroup = { notes, gapMs ->
             mainHandler.post {
                 val pts = ArrayList<Pair<Float, Float>>(notes.size)
@@ -710,6 +834,15 @@ class OverlayClickerService : Service() {
 
     companion object {
         const val EXTRA_CALIBRATE = "extra_calibrate"
+
+        /** 通知栏「关闭悬浮窗」用的 action */
+        const val ACTION_STOP = "com.genshin.piano.action.STOP_OVERLAY"
+
+        /** 悬浮条歌单最多显示几行，超出后内部滑动 */
+        private const val SONG_VISIBLE_ROWS = 5
+
+        /** 歌单每行高度（dp），用于算 ScrollView 高度 */
+        private const val SONG_ROW_DP = 34
 
         private const val TAG = "PianoTap"
         /** 单次点击最短按住（与 PC 端 MIN_HOLD 对齐） */

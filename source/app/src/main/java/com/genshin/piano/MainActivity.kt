@@ -1,5 +1,6 @@
 package com.genshin.piano
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,12 +17,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             GenshinTheme {
                 val context = LocalContext.current
-                // App 启动时检查权限，缺则进引导页
-                var ready by remember { mutableStateOf(Permissions.allGranted(context)) }
-                if (ready) {
-                    HomeScreen()
-                } else {
-                    OnboardingScreen(onDone = { ready = true })
+                val prefs = remember { context.getSharedPreferences("app", Context.MODE_PRIVATE) }
+
+                // 进主界面的条件：权限全部到位，或者用户曾经点过「直接进入」
+                // （不强制授权 —— 未授权的功能在主界面里会显示状态，随时可回来开）
+                var page by remember {
+                    mutableStateOf(
+                        if (Permissions.allGranted(context) || prefs.getBoolean("onboarded", false))
+                            "home" else "onboard"
+                    )
+                }
+
+                when (page) {
+                    "home" -> HomeScreen(onOpenPermissions = { page = "onboard" })
+                    else -> OnboardingScreen(onDone = {
+                        prefs.edit().putBoolean("onboarded", true).apply()
+                        page = "home"
+                    })
                 }
             }
         }

@@ -103,20 +103,29 @@ fun OnboardingScreen(onDone: () -> Unit) {
         }
 
         Spacer(Modifier.height(26.dp))
+
+        // 主按钮：任何时候都能进（不强制授权）
         Button(
             onClick = onDone,
-            enabled = done,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Gold,
                 contentColor = Color(0xFF2A2005),
-                disabledContainerColor = BgInput,
-                disabledContentColor = TextMute,
             ),
         ) {
-            Text(if (done) "进入应用" else "请先完成以上授权", fontWeight = FontWeight.Bold)
+            Text(
+                if (done) "进入应用" else "直接进入（未开启的功能暂不可用）",
+                fontWeight = FontWeight.Bold,
+            )
         }
+
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (done) "四项已就绪，进入即可自动演奏。"
+            else "可以先进入看看；「无障碍」没开的话连点器无法注入点击，随时可以回来开。",
+            color = TextMute, fontSize = 11.sp,
+        )
         Spacer(Modifier.height(24.dp))
     }
 }
