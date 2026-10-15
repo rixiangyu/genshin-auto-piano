@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose 负责大部分主题，这里只做窗口背景与状态栏，避免白屏闪烁 -->
+    <style name="Theme.GenshinPiano" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#1a1f35</item>
+        <item name="android:navigationBarColor">#1a1f35</item>
+        <item name="android:windowBackground">#1a1f35</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

@@ -1,0 +1,22 @@
+# ===== Android / Gradle 构建产物（可由源码再生，不提交）=====
+.gradle/
+build/
+.kotlin/
+
+# ===== 机器相关配置（每台电脑自己生成）=====
+local.properties
+*.iml
+.idea/
+
+# ===== 编译 / 构建日志 =====
+*.log
+
+# ===== 系统垃圾文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== APK 构建输出目录（source 下）=====
+# 注意：仓库根目录的 GenshinAutoPiano-debug-v1.0.apk 是"这一版"交付物，
+# 属于**要提交**的归档件，不受此规则影响。
+source/app/build/outputs/

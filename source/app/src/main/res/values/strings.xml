@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">原神自动弹琴</string>
+    <string name="accessibility_label">原神自动弹琴 · 点击</string>
+    <string name="accessibility_desc">用于在原神等游戏中模拟点击琴键以实现自动演奏。仅在你主动开启后生效，不会读取或上传任何内容。</string>
+</resources>
