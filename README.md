@@ -8,13 +8,13 @@ PC 版（Python + PySide6，模拟键盘按键）的安卓移植：**读取 MIDI
 
 ## 项目来源与许可证
 
-本仓库是 **[jiuchun2026/genshin-auto-piano](https://github.com/jiuchun2026/genshin-auto-piano)（原神自动弹琴 · PC 版）** 的**安卓移植版**。
+本仓库是 **[sabihoshi/GenshinLyreMidiPlayer](https://github.com/sabihoshi/GenshinLyreMidiPlayer)（原神风物之诗琴 MIDI 自动演奏）** 的**安卓移植版**。
 
-- **原项目**：Windows 桌面端，Python + PySide6，模拟键盘按键弹奏；由 [@jiuchun2026](https://github.com/jiuchun2026) 使用 AI 工具开发，采用 **MIT License**。它提供了本项目的核心设计思路：MIDI 解析、21 键映射、长音还原、和弦与变速播放等。
+- **原项目（概念与玩法起源）**：[sabihoshi/GenshinLyreMidiPlayer](https://github.com/sabihoshi/GenshinLyreMidiPlayer)（C# / WPF，Windows 端），采用 **MIT License**。它是《原神》「风物之诗琴」MIDI 自动演奏这一玩法的知名开源实现，也是本项目的灵感来源与按键映射 / 演奏逻辑思路的起点。
 - **本安卓版**：在保留上述设计思路的基础上，**完全用 Kotlin + Jetpack Compose 重写**，把"模拟键盘按键"改为"无障碍服务模拟屏幕触摸"，实现手机端自动弹奏原神风物之诗琴。
 - **许可证**：本项目沿用原项目的 **MIT License**，并保留原作者版权声明。许可证全文见仓库根目录 [`LICENSE`](./LICENSE)。
 
-> 本仓库与原作者无隶属关系，仅为受其启发进行的非官方安卓移植。如权利方认为任何内容不妥，可联系下架。
+> 本仓库与 sabihoshi 无隶属关系，仅为受其启发进行的非官方安卓移植。与 miHoYo / HoYoverse 无任何关联，商标声明见 LICENSE 末。如权利方认为任何内容不妥，可联系下架。
 
 ## 一、这个目录里有什么
 
