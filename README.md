@@ -30,6 +30,34 @@ PC 版（Python + PySide6，模拟键盘按键）的安卓移植：**读取 MIDI
 > 文档是给「以后要小改动」的自己看的：先看 `02` 找位置，改动后照 `02` 末尾的命令构建即可。
 > 新家路径已经是**纯英文**，不再需要 AGP 的中文路径绕过开关，构建比原来更干净。
 
+### 源码结构（`source/`）
+
+```
+source/
+├── app/
+│   ├── build.gradle.kts                 # 版本/依赖（versionCode 2，v1.1）
+│   └── src/main/
+│       ├── AndroidManifest.xml
+│       ├── java/com/genshin/piano/
+│       │   ├── MainActivity.kt           # 入口，读 onboarded 跳过引导
+│       │   ├── access/
+│       │   │   └── AccessibilityClickService.kt  # 无障碍注入（真和弦 tapMulti）
+│       │   ├── data/                      # Keymap / SongList / CalibrationStore / KeymapAdapter
+│       │   ├── midi/
+│       │   │   └── MidiParser.kt          # MIDI 解析（⚠️ 时间运算必须用 Double）
+│       │   ├── overlay/
+│       │   │   └── OverlayClickerService.kt  # 悬浮窗（折叠/展开/校准/关闭）
+│       │   ├── perm/                      # 权限页与引导（OnboardingScreen / Permissions）
+│       │   ├── play/
+│       │   │   └── PlayerEngine.kt        # 演奏引擎（按组和弦回调）
+│       │   └── ui/                        # HomeScreen / PianoGrid / Theme
+│       └── res/                           # 资源
+├── gradle/                               # Gradle Wrapper
+└── local.properties                      # 本机 SDK 路径（不入库）
+```
+
+> 更详细的「每个文件职责 / 想改 X 该动哪里 / 绝对不要改的清单」见 [`02-项目结构与修改指南.md`](./02-项目结构与修改指南.md)。
+
 ---
 
 ## 二、30 秒上手
